@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de Bord - Analyse d'Avis</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav id="navbar"></nav>
+
+    <div class="container">
+        <h1>📊 Tableau de Bord</h1>
+
+        <!-- Statistiques principales -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total d'avis</h3>
+                <div class="stat-value" id="totalReviews">0</div>
+            </div>
+
+            <div class="stat-card">
+                <h3>Score moyen</h3>
+                <div class="stat-value" id="averageScore">0</div>
+            </div>
+
+            <div class="stat-card">
+                <h3>Avis positifs</h3>
+                <div class="stat-value positive" id="positiveCount">0</div>
+            </div>
+
+            <div class="stat-card">
+                <h3>Avis négatifs</h3>
+                <div class="stat-value negative" id="negativeCount">0</div>
+            </div>
+        </div>
+
+        <!-- Distribution des sentiments -->
+        <div class="card">
+            <h3>📈 Distribution des Sentiments</h3>
+            <div id="sentimentDistribution" class="sentiment-bars">
+                <!-- Les barres seront générées dynamiquement -->
+            </div>
+        </div>
+
+        <!-- Top thèmes -->
+        <div class="card">
+            <h3>🏆 Top 3 des Thèmes</h3>
+            <div id="topTopics" class="topics-list">
+                <!-- Les thèmes seront générés dynamiquement -->
+            </div>
+        </div>
+
+        <!-- Avis récents -->
+        <div class="card">
+            <h3>🕒 5 Derniers Avis</h3>
+            <div id="recentReviews">
+                <!-- Les avis seront générés dynamiquement -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script>
+        // Vérifier l'authentification
+        checkAuth();
+
+        // Créer la navbar
+        createNavbar('dashboard');
+
+        // Fonction pour charger les statistiques
+        async function loadStats() {
+            try {
+                const stats = await dashboardAPI.getStats();
+                displayStats(stats);
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('Erreur lors du chargement des statistiques');
+            }
+        }
+
+        // Fonction pour afficher les statistiques
+        function displayStats(stats) {
+            // Statistiques principales
+            document.getElementById('totalReviews').textContent = stats.total_reviews;
+            document.getElementById('averageScore').textContent = stats.average_score.toFixed(1);
+            document.getElementById('positiveCount').textContent = stats.sentiment_distribution.positive;
+            document.getElementById('negativeCount').textContent = stats.sentiment_distribution.negative;
+
+            // Distribution des sentiments (barres visuelles)
+            displaySentimentDistribution(stats.sentiment_distribution, stats.total_reviews);
+
+            // Top thèmes
+            displayTopTopics(stats.top_topics);
+
+            // Avis récents
+            displayRecentReviews(stats.recent_reviews);
+        }
+
+        // Fonction pour afficher la distribution des sentiments
+        function displaySentimentDistribution(distribution, total) {
+            const container = document.getElementById('sentimentDistribution');
+            container.innerHTML = '';
+
+            const sentiments = [
+                { key: 'positive', label: 'Positif', color: '#28a745' },
+                { key: 'neutral', label: 'Neutre', color: '#ffc107' },
+                { key: 'negative', label: 'Négatif', color: '#dc3545' }
+            ];
+
+            sentiments.forEach(sentiment => {
+                const count = distribution[sentiment.key] || 0;
+                const percentage = total > 0 ? (count / total * 100).toFixed(1) : 0;
+
+                const barContainer = document.createElement('div');
+                barContainer.className = 'sentiment-bar-container';
+                barContainer.innerHTML = `
+                    <div class="sentiment-bar-label">
+                        <span>${sentiment.label}</span>
+                        <span>${count} (${percentage}%)</span>
+                    </div>
+                    <div class="sentiment-bar-bg">
+                        <div class="sentiment-bar-fill" style="width: ${percentage}%; background-color: ${sentiment.color};"></div>
+                    </div>
+                `;
+                container.appendChild(barContainer);
+            });
+        }
+
+        // Fonction pour afficher les top thèmes
+        function displayTopTopics(topics) {
+            const container = document.getElementById('topTopics');
+            container.innerHTML = '';
+
+            if (topics.length === 0) {
+                container.innerHTML = '<p style="text-align: center;">Aucun thème détecté</p>';
+                return;
+            }
+
+            const topThree = topics.slice(0, 3);
+            topThree.forEach((topic, index) => {
+                const topicItem = document.createElement('div');
+                topicItem.className = 'topic-item';
+                topicItem.innerHTML = `
+                    <span class="topic-rank">#${index + 1}</span>
+                    <span class="topic-name">${topic.topic}</span>
+                    <span class="topic-count">${topic.count} mentions</span>
+                `;
+                container.appendChild(topicItem);
+            });
+        }
+
+        // Fonction pour afficher les avis récents
+        function displayRecentReviews(reviews) {
+            const container = document.getElementById('recentReviews');
+            container.innerHTML = '';
+
+            if (reviews.length === 0) {
+                container.innerHTML = '<p style="text-align: center;">Aucun avis récent</p>';
+                return;
+            }
+
+            reviews.forEach(review => {
+                const reviewItem = document.createElement('div');
+                reviewItem.className = 'recent-review-item';
+                reviewItem.innerHTML = `
+                    <div class="review-header">
+                        <span class="badge ${getSentimentClass(review.sentiment)}">${getSentimentLabel(review.sentiment)}</span>
+                        <span class="badge badge-score">${review.score}/100</span>
+                        <span class="review-date">${formatDate(review.created_at)}</span>
+                    </div>
+                    <div class="review-content">
+                        ${review.content.substring(0, 150)}${review.content.length > 150 ? '...' : ''}
+                    </div>
+                `;
+                container.appendChild(reviewItem);
+            });
+        }
+
+        // Charger les statistiques au chargement de la page
+        loadStats();
+    </script>
+
+    <style>
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #666;
+            font-weight: normal;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .stat-value.positive {
+            color: #28a745;
+        }
+
+        .stat-value.negative {
+            color: #dc3545;
+        }
+
+        .sentiment-bars {
+            padding: 10px 0;
+        }
+
+        .sentiment-bar-container {
+            margin-bottom: 15px;
+        }
+
+        .sentiment-bar-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .sentiment-bar-bg {
+            width: 100%;
+            height: 30px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .sentiment-bar-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+
+        .topics-list {
+            padding: 10px 0;
+        }
+
+        .topic-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+
+        .topic-rank {
+            font-size: 20px;
+            font-weight: bold;
+            margin-right: 15px;
+            min-width: 40px;
+        }
+
+        .topic-name {
+            flex: 1;
+            font-weight: 500;
+        }
+
+        .topic-count {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .recent-review-item {
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+
+        .recent-review-item .review-header {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        .recent-review-item .review-content {
+            color: #555;
+            line-height: 1.5;
+        }
+    </style>
+</body>
+</html>
+

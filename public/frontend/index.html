@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion / Inscription - Analyse d'Avis</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .toggle-form {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .toggle-form a {
+            color: #007bff;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .toggle-form a:hover {
+            color: #0056b3;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <!-- Formulaire de Connexion -->
+        <div class="auth-card" id="loginCard">
+            <h2>🔐 Connexion</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="loginEmail">Email</label>
+                    <input type="email" id="loginEmail" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Mot de passe</label>
+                    <input type="password" id="loginPassword" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Se connecter</button>
+            </form>
+            <div class="toggle-form">
+                Pas encore de compte ? <a onclick="showRegisterForm()">S'inscrire</a>
+            </div>
+        </div>
+
+        <!-- Formulaire d'Inscription -->
+        <div class="auth-card hidden" id="registerCard">
+            <h2>📝 Inscription</h2>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="registerName">Nom</label>
+                    <input type="text" id="registerName" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerEmail">Email</label>
+                    <input type="email" id="registerEmail" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="registerPassword">Mot de passe</label>
+                    <input type="password" id="registerPassword" name="password" required minlength="8">
+                </div>
+                <div class="form-group">
+                    <label for="registerPasswordConfirmation">Confirmer le mot de passe</label>
+                    <input type="password" id="registerPasswordConfirmation" name="password_confirmation" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">S'inscrire</button>
+            </form>
+            <div class="toggle-form">
+                Déjà un compte ? <a onclick="showLoginForm()">Se connecter</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        // Rediriger si déjà connecté
+        if (getToken()) {
+            window.location.href = 'dashboard.html';
+        }
+
+        // Fonction pour basculer vers le formulaire d'inscription
+        function showRegisterForm() {
+            document.getElementById('loginCard').classList.add('hidden');
+            document.getElementById('registerCard').classList.remove('hidden');
+        }
+
+        // Fonction pour basculer vers le formulaire de connexion
+        function showLoginForm() {
+            document.getElementById('registerCard').classList.add('hidden');
+            document.getElementById('loginCard').classList.remove('hidden');
+        }
+
+        // Gestion du formulaire de connexion
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const response = await authAPI.login(email, password);
+                saveToken(response.token);
+                saveUser(response.user);
+                window.location.href = 'dashboard.html';
+            } catch (error) {
+                alert(error.message || 'Erreur de connexion');
+            }
+        });
+
+        // Gestion du formulaire d'inscription
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const name = document.getElementById('registerName').value;
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            const passwordConfirmation = document.getElementById('registerPasswordConfirmation').value;
+
+            if (password !== passwordConfirmation) {
+                alert('Les mots de passe ne correspondent pas');
+                return;
+            }
+
+            try {
+                const response = await authAPI.register(name, email, password, passwordConfirmation);
+                saveToken(response.token);
+                saveUser(response.user);
+                window.location.href = 'dashboard.html';
+            } catch (error) {
+                if (error.errors) {
+                    const messages = Object.values(error.errors).flat().join('\n');
+                    alert(messages);
+                } else {
+                    alert(error.message || 'Erreur lors de l\'inscription');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+
