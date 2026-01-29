@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ajouter un Avis - Analyse d'Avis</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav id="navbar"></nav>
+
+    <div class="container">
+        <h1>✍️ Ajouter un Avis</h1>
+
+        <div class="card">
+            <form id="reviewForm">
+                <div class="form-group">
+                    <label for="content">Contenu de l'avis</label>
+                    <textarea
+                        id="content"
+                        name="content"
+                        rows="8"
+                        required
+                        minlength="10"
+                        maxlength="5000"
+                        placeholder="Écrivez votre avis ici..."
+                    ></textarea>
+                    <small id="charCount">0 / 5000 caractères</small>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="testAnalyzeBtn">🧪 Tester l'analyse</button>
+                    <button type="submit" class="btn btn-primary">💾 Créer l'avis</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Résultats de l'analyse -->
+        <div id="analysisResult" class="card" style="display: none; margin-top: 20px;">
+            <h3>📊 Résultat de l'analyse</h3>
+            <div class="analysis-details">
+                <div class="analysis-item">
+                    <strong>Sentiment :</strong>
+                    <span id="resultSentiment" class="badge"></span>
+                </div>
+                <div class="analysis-item">
+                    <strong>Score :</strong>
+                    <span id="resultScore" class="badge-score"></span>
+                </div>
+                <div class="analysis-item">
+                    <strong>Thèmes détectés :</strong>
+                    <div id="resultTopics"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        // Vérifier l'authentification
+        checkAuth();
+
+        // Créer la navbar
+        createNavbar('add-review');
+
+        const contentTextarea = document.getElementById('content');
+        const charCount = document.getElementById('charCount');
+        const reviewForm = document.getElementById('reviewForm');
+        const testAnalyzeBtn = document.getElementById('testAnalyzeBtn');
+        const analysisResult = document.getElementById('analysisResult');
+
+        // Compteur de caractères
+        contentTextarea.addEventListener('input', () => {
+            const length = contentTextarea.value.length;
+            charCount.textContent = `${length} / 5000 caractères`;
+        });
+
+        // Fonction pour afficher les résultats de l'analyse
+        function displayAnalysis(analysis) {
+            const sentimentSpan = document.getElementById('resultSentiment');
+            const scoreSpan = document.getElementById('resultScore');
+            const topicsDiv = document.getElementById('resultTopics');
+
+            // Sentiment
+            sentimentSpan.textContent = getSentimentLabel(analysis.sentiment);
+            sentimentSpan.className = `badge ${getSentimentClass(analysis.sentiment)}`;
+
+            // Score
+            scoreSpan.textContent = `${analysis.score} / 100`;
+            scoreSpan.className = 'badge-score';
+
+            // Topics
+            topicsDiv.innerHTML = '';
+            if (analysis.topics && analysis.topics.length > 0) {
+                analysis.topics.forEach(topic => {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge badge-topic';
+                    badge.textContent = topic;
+                    topicsDiv.appendChild(badge);
+                });
+            } else {
+                topicsDiv.textContent = 'Aucun thème détecté';
+            }
+
+            analysisResult.style.display = 'block';
+        }
+
+        // Tester l'analyse sans créer l'avis
+        testAnalyzeBtn.addEventListener('click', async () => {
+            const content = contentTextarea.value.trim();
+
+            if (content.length < 10) {
+                alert('Le contenu doit contenir au moins 10 caractères');
+                return;
+            }
+
+            try {
+                testAnalyzeBtn.disabled = true;
+                testAnalyzeBtn.textContent = '⏳ Analyse en cours...';
+
+                const analysis = await reviewsAPI.analyze(content);
+                displayAnalysis(analysis);
+
+                testAnalyzeBtn.disabled = false;
+                testAnalyzeBtn.textContent = '🧪 Tester l\'analyse';
+            } catch (error) {
+                alert(error.message || 'Erreur lors de l\'analyse');
+                testAnalyzeBtn.disabled = false;
+                testAnalyzeBtn.textContent = '🧪 Tester l\'analyse';
+            }
+        });
+
+        // Créer l'avis
+        reviewForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const content = contentTextarea.value.trim();
+
+            if (content.length < 10) {
+                alert('Le contenu doit contenir au moins 10 caractères');
+                return;
+            }
+
+            try {
+                const submitBtn = reviewForm.querySelector('button[type="submit"]');
+                submitBtn.disabled = true;
+                submitBtn.textContent = '⏳ Création en cours...';
+
+                const response = await reviewsAPI.create(content);
+
+                // Afficher le résultat
+                displayAnalysis({
+                    sentiment: response.review.sentiment,
+                    score: response.review.score,
+                    topics: response.review.topics
+                });
+
+                alert('✅ Avis créé avec succès !');
+
+                // Rediriger vers la liste des avis après 2 secondes
+                setTimeout(() => {
+                    window.location.href = 'reviews.html';
+                }, 2000);
+
+            } catch (error) {
+                alert(error.message || 'Erreur lors de la création de l\'avis');
+                const submitBtn = reviewForm.querySelector('button[type="submit"]');
+                submitBtn.disabled = false;
+                submitBtn.textContent = '💾 Créer l\'avis';
+            }
+        });
+    </script>
+</body>
+</html>
+

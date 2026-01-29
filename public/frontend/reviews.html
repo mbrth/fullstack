@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liste des Avis - Analyse d'Avis</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav id="navbar"></nav>
+
+    <div class="container">
+        <div class="page-header">
+            <h1>📝 Liste des Avis</h1>
+            <a href="add-review.html" class="btn btn-primary">➕ Ajouter un avis</a>
+        </div>
+
+        <!-- Filtres -->
+        <div class="filters card">
+            <div class="filter-group">
+                <label for="sentimentFilter">Sentiment :</label>
+                <select id="sentimentFilter">
+                    <option value="">Tous</option>
+                    <option value="positive">Positif</option>
+                    <option value="neutral">Neutre</option>
+                    <option value="negative">Négatif</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="sortBy">Trier par :</label>
+                <select id="sortBy">
+                    <option value="created_at">Date</option>
+                    <option value="score">Score</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="sortOrder">Ordre :</label>
+                <select id="sortOrder">
+                    <option value="desc">Décroissant</option>
+                    <option value="asc">Croissant</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Liste des avis -->
+        <div id="reviewsList"></div>
+
+        <!-- Pagination -->
+        <div id="pagination" class="pagination"></div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/reviews.js"></script>
+    <script>
+        // Vérifier l'authentification
+        checkAuth();
+
+        // Créer la navbar
+        createNavbar('reviews');
+
+        let currentPage = 1;
+
+        // Fonction pour charger les avis
+        async function loadReviews() {
+            const sentiment = document.getElementById('sentimentFilter').value;
+            const sortBy = document.getElementById('sortBy').value;
+            const sortOrder = document.getElementById('sortOrder').value;
+
+            try {
+                const response = await reviewsAPI.getAll({
+                    page: currentPage,
+                    sentiment: sentiment,
+                    sort_by: sortBy,
+                    sort_order: sortOrder
+                });
+
+                displayReviews(response.data);
+                displayPagination(response.meta);
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('Erreur lors du chargement des avis');
+            }
+        }
+
+        // Fonction pour afficher les avis
+        function displayReviews(reviews) {
+            const reviewsList = document.getElementById('reviewsList');
+            reviewsList.innerHTML = '';
+
+            if (reviews.length === 0) {
+                reviewsList.innerHTML = '<div class="card"><p style="text-align: center;">Aucun avis trouvé</p></div>';
+                return;
+            }
+
+            reviews.forEach(review => {
+                const reviewCard = document.createElement('div');
+                reviewCard.className = 'card review-card';
+                reviewCard.innerHTML = `
+                    <div class="review-header">
+                        <div>
+                            <strong>${review.user_name}</strong>
+                            <span class="review-date">${formatDate(review.created_at)}</span>
+                        </div>
+                        <div class="review-actions">
+                            <span class="badge ${getSentimentClass(review.sentiment)}">${getSentimentLabel(review.sentiment)}</span>
+                            <span class="badge badge-score">${review.score}/100</span>
+                        </div>
+                    </div>
+                    <div class="review-content">
+                        <p>${review.content}</p>
+                    </div>
+                    <div class="review-topics">
+                        ${review.topics.map(topic => `<span class="badge badge-topic">${topic}</span>`).join('')}
+                    </div>
+                    <div class="review-footer">
+                        ${getUserActionsHTML(review)}
+                    </div>
+                `;
+                reviewsList.appendChild(reviewCard);
+            });
+        }
+
+        // Fonction pour générer les actions utilisateur
+        function getUserActionsHTML(review) {
+            const currentUser = getUser();
+            if (!currentUser) return '';
+
+            if (currentUser.id === review.user_id || currentUser.role === 'admin') {
+                return `
+                    <button class="btn btn-sm btn-secondary" onclick="editReview(${review.id})">✏️ Modifier</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteReview(${review.id})">🗑️ Supprimer</button>
+                `;
+            }
+            return '';
+        }
+
+        // Fonction pour afficher la pagination
+        function displayPagination(meta) {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            if (meta.last_page <= 1) return;
+
+            // Bouton précédent
+            if (meta.current_page > 1) {
+                const prevBtn = document.createElement('button');
+                prevBtn.className = 'btn btn-sm';
+                prevBtn.textContent = '← Précédent';
+                prevBtn.onclick = () => {
+                    currentPage = meta.current_page - 1;
+                    loadReviews();
+                };
+                pagination.appendChild(prevBtn);
+            }
+
+            // Numéros de page
+            const pageInfo = document.createElement('span');
+            pageInfo.textContent = `Page ${meta.current_page} sur ${meta.last_page}`;
+            pageInfo.style.margin = '0 15px';
+            pagination.appendChild(pageInfo);
+
+            // Bouton suivant
+            if (meta.current_page < meta.last_page) {
+                const nextBtn = document.createElement('button');
+                nextBtn.className = 'btn btn-sm';
+                nextBtn.textContent = 'Suivant →';
+                nextBtn.onclick = () => {
+                    currentPage = meta.current_page + 1;
+                    loadReviews();
+                };
+                pagination.appendChild(nextBtn);
+            }
+        }
+
+        // Fonction pour modifier un avis
+        async function editReview(id) {
+            const newContent = prompt('Nouveau contenu de l\'avis :');
+            if (!newContent || newContent.trim().length < 10) {
+                alert('Le contenu doit contenir au moins 10 caractères');
+                return;
+            }
+
+            try {
+                await reviewsAPI.update(id, newContent.trim());
+                alert('✅ Avis modifié avec succès');
+                loadReviews();
+            } catch (error) {
+                alert(error.message || 'Erreur lors de la modification');
+            }
+        }
+
+        // Fonction pour supprimer un avis
+        async function deleteReview(id) {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer cet avis ?')) {
+                return;
+            }
+
+            try {
+                await reviewsAPI.delete(id);
+                alert('✅ Avis supprimé avec succès');
+                loadReviews();
+            } catch (error) {
+                alert(error.message || 'Erreur lors de la suppression');
+            }
+        }
+
+        // Événements de filtrage
+        document.getElementById('sentimentFilter').addEventListener('change', () => {
+            currentPage = 1;
+            loadReviews();
+        });
+
+        document.getElementById('sortBy').addEventListener('change', () => {
+            currentPage = 1;
+            loadReviews();
+        });
+
+        document.getElementById('sortOrder').addEventListener('change', () => {
+            currentPage = 1;
+            loadReviews();
+        });
+
+        // Charger les avis au chargement de la page
+        loadReviews();
+    </script>
+</body>
+</html>
+
